@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"go.temporal.io/server/chasm"
 	"go.temporal.io/server/common"
 	"go.temporal.io/server/common/cluster"
@@ -29,12 +32,16 @@ func httpCallerProviderProvider(
 	rpcFactory common.RPCFactory,
 	httpClientCache *cluster.FrontendHTTPClientCache,
 	logger log.Logger,
+	tracerProvider trace.TracerProvider,
+	propagator propagation.TextMapPropagator,
 ) (HTTPCallerProvider, error) {
 	localClient, err := rpcFactory.CreateLocalFrontendHTTPClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create local frontend HTTP client: %w", err)
 	}
-	defaultClient := &http.Client{}
+	defaultClient := &http.Client{
+		Transport: wrapTransportWithOTEL(http.DefaultTransport, tracerProvider, propagator),
+	}
 	callbackTokenGenerator := commonnexus.NewCallbackTokenGenerator()
 
 	m := collection.NewOnceMap(func(queuescommon.NamespaceIDAndDestination) HTTPCaller {
@@ -51,6 +58,24 @@ func httpCallerProviderProvider(
 		}
 	})
 	return m.Get, nil
+}
+
+func wrapTransportWithOTEL(
+	rt http.RoundTripper,
+	tracerProvider trace.TracerProvider,
+	propagator propagation.TextMapPropagator,
+) http.RoundTripper {
+	if tracerProvider == nil {
+		return rt
+	}
+	if propagator == nil {
+		propagator = propagation.TraceContext{}
+	}
+	return otelhttp.NewTransport(
+		rt,
+		otelhttp.WithTracerProvider(tracerProvider),
+		otelhttp.WithPropagators(propagator),
+	)
 }
 
 var Module = fx.Module(

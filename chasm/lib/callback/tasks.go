@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.temporal.io/server/chasm"
 	callbackspb "go.temporal.io/server/chasm/lib/callback/gen/callbackpb/v1"
 	"go.temporal.io/server/common/log"
@@ -15,6 +16,9 @@ import (
 	"go.temporal.io/server/service/history/queues/common"
 	"go.uber.org/fx"
 )
+
+// callbackTracerScope is the library name reported on spans by CHASM callbacks.
+const callbackTracerScope = "go.temporal.io/server/chasm/lib/callback"
 
 // HTTPCaller is a method that can be used to invoke HTTP requests.
 type HTTPCaller func(*http.Request) (*http.Response, error)
@@ -79,6 +83,7 @@ type invocationTaskHandlerOptions struct {
 	HTTPCallerProvider HTTPCallerProvider
 	HTTPTraceProvider  commonnexus.HTTPClientTraceProvider
 	HistoryClient      resource.HistoryClient
+	TracerProvider     trace.TracerProvider
 }
 
 type invocationTaskHandler struct {
@@ -90,6 +95,7 @@ type invocationTaskHandler struct {
 	httpCallerProvider HTTPCallerProvider
 	httpTraceProvider  commonnexus.HTTPClientTraceProvider
 	historyClient      resource.HistoryClient
+	tracer             trace.Tracer
 }
 
 func newInvocationTaskHandler(opts invocationTaskHandlerOptions) *invocationTaskHandler {
@@ -101,6 +107,7 @@ func newInvocationTaskHandler(opts invocationTaskHandlerOptions) *invocationTask
 		httpCallerProvider: opts.HTTPCallerProvider,
 		httpTraceProvider:  opts.HTTPTraceProvider,
 		historyClient:      opts.HistoryClient,
+		tracer:             opts.TracerProvider.Tracer(callbackTracerScope),
 	}
 }
 
