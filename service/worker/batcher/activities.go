@@ -429,7 +429,7 @@ func (a *activities) getActivityLogger(ctx context.Context) log.Logger {
 	)
 }
 
-// resolveRelativeTimestamps resolves NOW() based expressions in query using BatchStartTime as the anchor.
+// resolveRelativeTimestamps resolves NOW() based expressions in query using BatchStartTime as the reference time.
 // Returns the query unchanged if BatchStartTime is not set or the query contains no NOW().
 // Uses a query converter to validate that NOW() is only used with DateTime search attributes,
 // ensuring consistent behavior with regular visibility queries.
@@ -610,7 +610,7 @@ func (a *activities) startTaskProcessor(
 						case *batchpb.BatchOperationUnpauseActivities_MatchAll:
 							unpauseRequest.Activity = &workflowservice.UnpauseActivityRequest_UnpauseAll{UnpauseAll: true}
 						default:
-							return errors.New(fmt.Sprintf("unknown activity type: %v", operation.UnpauseActivitiesOperation.GetActivity()))
+							return fmt.Errorf("unknown activity type: %v", operation.UnpauseActivitiesOperation.GetActivity())
 						}
 
 						_, err = frontendClient.UnpauseActivity(ctx, unpauseRequest)
@@ -649,7 +649,7 @@ func (a *activities) startTaskProcessor(
 						case *batchpb.BatchOperationResetActivities_MatchAll:
 							resetRequest.Activity = &workflowservice.ResetActivityRequest_MatchAll{MatchAll: true}
 						default:
-							return errors.New(fmt.Sprintf("unknown activity type: %v", operation.ResetActivitiesOperation.GetActivity()))
+							return fmt.Errorf("unknown activity type: %v", operation.ResetActivitiesOperation.GetActivity())
 						}
 
 						_, err = frontendClient.ResetActivity(ctx, resetRequest)
@@ -672,7 +672,7 @@ func (a *activities) startTaskProcessor(
 						case *batchpb.BatchOperationUpdateActivityOptions_MatchAll:
 							updateRequest.Activity = &workflowservice.UpdateActivityOptionsRequest_MatchAll{MatchAll: true}
 						default:
-							return errors.New(fmt.Sprintf("unknown activity type: %v", operation.UpdateActivityOptionsOperation.GetActivity()))
+							return fmt.Errorf("unknown activity type: %v", operation.UpdateActivityOptionsOperation.GetActivity())
 						}
 
 						updateRequest.ActivityOptions = operation.UpdateActivityOptionsOperation.GetActivityOptions()
@@ -680,7 +680,7 @@ func (a *activities) startTaskProcessor(
 						return err
 					})
 			default:
-				err = errors.New(fmt.Sprintf("unknown batch type: %v", batchOperation.BatchType))
+				err = fmt.Errorf("unknown batch type: %v", batchOperation.BatchType)
 			}
 			a.handleTaskResult(batchOperation, task, err, taskCh, respCh, metricsHandler, logger)
 		}
